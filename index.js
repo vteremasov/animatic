@@ -27,6 +27,8 @@
     leaves2: 'leaves2.png',
   };
 
+  const WIND_MAX = 2.6; // much punchier gust ceiling
+
   const state = {
     images: {},
     lineBounds: null,
@@ -204,11 +206,11 @@
     }));
 
     // leaves resting on top of the line, gentle sway
-    const leavesOffsetX = topLine.width * 0.16;
+    const leavesOffsetX = topLine.width * 0.16 - 1;
     state.leaves = {
-      anchor: { x: midX + leavesOffsetX, y: lineTopY + 117 },
+      anchor: { x: midX + leavesOffsetX, y: lineTopY + 114 },
       offsetX: leavesOffsetX,
-      offsetY: 117,
+      offsetY: 114,
       angle: 0,
       angularVelocity: 0,
     };
@@ -216,9 +218,9 @@
     // leaves2 resting on top of the line, gentle sway
     const leaves2OffsetX = topLine.width * -0.24;
     state.leaves2 = {
-      anchor: { x: midX + leaves2OffsetX, y: lineTopY + 40 },
+      anchor: { x: midX + leaves2OffsetX, y: lineTopY + 48 },
       offsetX: leaves2OffsetX,
-      offsetY: 40,
+      offsetY: 48,
       angle: 0,
       angularVelocity: 0,
     };
@@ -317,20 +319,20 @@
     const damping = 0.99;
 
     if (performance.now() > state.nextWindShift) {
-      state.windTarget = (Math.random() * 2 - 1) * 0.95; // -0.95..0.95
+      state.windTarget = (Math.random() * 2 - 1) * WIND_MAX; // broaden gust range
       state.nextWindShift = performance.now() + 1500 + Math.random() * 900;
     }
     state.wind += (state.windTarget - state.wind) * 0.02;
-    state.wind = Math.max(Math.min(state.wind, 1), -1); // bound gust strength
+    state.wind = Math.max(Math.min(state.wind, WIND_MAX), -WIND_MAX); // bound gust strength
 
     // sock physics (shares wind but its own state)
     if (state.sock) {
-      const windForce = state.wind * 0.018;
+      const windForce = state.wind * 0.32; // socks catch even more wind
       let micro = (Math.random() - 0.5) * 0.006;
       if (Math.abs(state.sock.angularVelocity) < 0.00008 || Math.abs(state.sock.angle) > 0.24) {
         micro += (Math.random() - 0.5) * 0.03;
       }
-      const centerPull = -0.22 * state.sock.angle;
+      const centerPull = -0.15 * state.sock.angle; // allow wider drift
       const angularAcceleration = -(gravity / state.sock.length) * Math.sin(state.sock.angle) + windForce + micro + centerPull;
       state.sock.angularVelocity += angularAcceleration * dt;
       state.sock.angularVelocity *= damping;
@@ -340,12 +342,12 @@
 
     // sock2 copies physics
     state.sock2s.forEach((s) => {
-      const windForce = state.wind * 0.018;
+      const windForce = state.wind * 0.32; // socks catch even more wind
       let micro = (Math.random() - 0.5) * 0.006;
       if (Math.abs(s.angularVelocity) < 0.00008 || Math.abs(s.angle) > 0.24) {
         micro += (Math.random() - 0.5) * 0.03;
       }
-      const centerPull = -0.22 * s.angle;
+      const centerPull = -0.15 * s.angle; // allow wider drift
       const angularAcceleration = -(gravity / s.length) * Math.sin(s.angle) + windForce + micro + centerPull;
       s.angularVelocity += angularAcceleration * dt;
       s.angularVelocity *= damping;
@@ -355,12 +357,12 @@
 
     // kendy copies physics
     state.kendys.forEach((k) => {
-      const windForce = state.wind * 0.018;
+      const windForce = state.wind * 0.32; // match sock wind strength
       let micro = (Math.random() - 0.5) * 0.006;
       if (Math.abs(k.angularVelocity) < 0.00008 || Math.abs(k.angle) > 0.24) {
         micro += (Math.random() - 0.5) * 0.03;
       }
-      const centerPull = -0.22 * k.angle;
+      const centerPull = -0.15 * k.angle; // allow wider drift like socks
       const angularAcceleration = -(gravity / k.length) * Math.sin(k.angle) + windForce + micro + centerPull;
       k.angularVelocity += angularAcceleration * dt;
       k.angularVelocity *= damping;
@@ -370,18 +372,18 @@
 
     // leaves sway (small rotational sway reacting to wind)
     if (state.leaves) {
-      const target = state.wind * 0.035; // lighter sway
-      const swayAccel = (target - state.leaves.angle) * 0.7;
+      const target = state.wind * 0.045; // toned-down sway
+      const swayAccel = (target - state.leaves.angle) * 0.55;
       state.leaves.angularVelocity += swayAccel * dt;
-      state.leaves.angularVelocity *= 0.998;
+      state.leaves.angularVelocity *= 0.997;
       state.leaves.angle += state.leaves.angularVelocity * dt;
       state.leaves.angle = Math.max(Math.min(state.leaves.angle, 0.06), -0.06);
     }
     if (state.leaves2) {
-      const target = state.wind * 0.035;
-      const swayAccel = (target - state.leaves2.angle) * 0.7;
+      const target = state.wind * 0.045;
+      const swayAccel = (target - state.leaves2.angle) * 0.55;
       state.leaves2.angularVelocity += swayAccel * dt;
-      state.leaves2.angularVelocity *= 0.998;
+      state.leaves2.angularVelocity *= 0.997;
       state.leaves2.angle += state.leaves2.angularVelocity * dt;
       state.leaves2.angle = Math.max(Math.min(state.leaves2.angle, 0.06), -0.06);
     }
@@ -399,7 +401,7 @@
     state.spin3.angle += state.spin3.speed * dt;
 
     state.flakes.forEach((flake) => {
-      const windForce = state.wind * 0.02; // gentle push
+      const windForce = state.wind * 0.045; // stronger push
       let micro = (Math.random() - 0.5) * 0.006;
       if (Math.abs(flake.angularVelocity) < 0.00008 || Math.abs(flake.angle) > 0.24) {
         micro += (Math.random() - 0.5) * 0.03; // stronger nudge if stalled or near edge
@@ -526,7 +528,7 @@
     // Draw leaves last so they sit above chains/flakes; pivot at opaque top-left
     if (state.leaves && state.images.leaves1) {
       const { leaves1 } = state.images;
-      const scale = 0.72;
+      const scale = 0.68; // slightly smaller on the right
       const drawW = leaves1.width * scale;
       const drawH = leaves1.height * scale;
       const bounds = state.flakeBounds.leaves1;
@@ -542,7 +544,7 @@
     // leaves2 above chains as well; pivot at opaque top-left
     if (state.leaves2 && state.images.leaves2) {
       const { leaves2 } = state.images;
-      const scale = 0.72;
+      const scale = 0.62; // slightly smaller on the left
       const drawW = leaves2.width * scale;
       const drawH = leaves2.height * scale;
       const bounds = state.flakeBounds.leaves2;
