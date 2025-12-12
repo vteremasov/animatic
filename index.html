@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snowflake Hang Test</title>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      min-height: 100vh;
+      font-family: "Gill Sans", "Trebuchet MS", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at 20% 20%, #1b2735, #090a0f 60%),
+                  radial-gradient(circle at 80% 10%, #142236, #090a0f 55%),
+                  linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 40%);
+      color: #f6f7fb;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 3rem 1.5rem;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 18px;
+      padding: 1.75rem 2rem;
+      max-width: 540px;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 12px 48px rgba(0, 0, 0, 0.28);
+    }
+    h1 {
+      font-size: 1.6rem;
+      letter-spacing: 0.02em;
+      margin-bottom: 0.75rem;
+    }
+    p {
+      font-size: 1rem;
+      line-height: 1.55;
+      opacity: 0.9;
+    }
+    code {
+      padding: 0.12rem 0.3rem;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      font-size: 0.95rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Snowflakes on a Line</h1>
+    <p>The canvas overlay is transparent and non-interactive. Serve this folder and watch the snowflakes sway on the top line.</p>
+    <p>Tip: run <code>npx serve .</code> (or any static server) from this directory, then open the page.</p>
+  </div>
+
+  <script src="index.js"></script>
+</body>
+</html>
