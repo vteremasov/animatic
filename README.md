@@ -6,8 +6,7 @@ Transparent canvas overlay with swinging snowflakes, chains, socks, candies, lea
 
 1) Serve the folder (any static server):
 ```bash
-npx serve .
-# or python -m http.server 8000
+python -m http.server 8000
 ```
 2) Open `index.html` in a browser. The overlay mounts a full-screen, transparent, non-interactive canvas on top of the page.
 
@@ -19,5 +18,4 @@ npx serve .
 
 ## Deploy
 
-- GitHub Pages: serve from `main` root and enable Pages in repo settings.
-- Any static host (Vercel/Netlify/Cloudflare Pages): deploy the folder as-is.
+https://vteremasov.github.io/animatic/
