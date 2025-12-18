@@ -42,6 +42,10 @@
     cherry2: null,
     leaves2: null,
     lights: [],
+    sprites: {
+      chainDot: null,
+      lights: new Map(),
+    },
     spin3: {
       angle: 0,
       speed: 0,
@@ -323,6 +327,65 @@
     return palette[Math.floor(Math.random() * palette.length)];
   }
 
+  function colorWithAlpha(hex, alpha = 1) {
+    const clean = hex.replace('#', '');
+    const bigint = parseInt(clean, 16);
+    const r = (bigint >> 16) & 255;
+    const g = (bigint >> 8) & 255;
+    const b = bigint & 255;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  function makeGlowSprite(radiusX, radiusY, blur, color, alpha = 1) {
+    const padX = radiusX + blur;
+    const padY = radiusY + blur;
+    const c = document.createElement('canvas');
+    c.width = Math.ceil(padX * 2);
+    c.height = Math.ceil(padY * 2);
+    const gctx = c.getContext('2d');
+    gctx.save();
+    gctx.translate(c.width / 2, c.height / 2);
+    gctx.scale(padX, padY);
+    const grad = gctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    grad.addColorStop(0, colorWithAlpha(color, alpha));
+    grad.addColorStop(0.6, colorWithAlpha(color, alpha * 0.35));
+    grad.addColorStop(1, colorWithAlpha(color, 0));
+    gctx.fillStyle = grad;
+    gctx.beginPath();
+    gctx.arc(0, 0, 1, 0, Math.PI * 2);
+    gctx.fill();
+    gctx.restore();
+    return c;
+  }
+
+  function getLightSprites(color) {
+    const cache = state.sprites.lights;
+    if (cache.has(color)) return cache.get(color);
+    const glow = makeGlowSprite(6, 4.5, 12, color, 0.9);
+    const core = makeGlowSprite(3.6, 2.7, 4, color, 1);
+    const entry = { glow, core };
+    cache.set(color, entry);
+    return entry;
+  }
+
+  function smoothLimit(body, limit, softness = 0.25, dampingFactor = 0.35) {
+    const absA = Math.abs(body.angle);
+    const softStart = limit * (1 - softness);
+    if (absA > limit) {
+      body.angle = Math.sign(body.angle) * limit;
+      body.angularVelocity = -Math.sign(body.angle) * 0.02;
+      return;
+    }
+    if (absA > softStart) {
+      const t = (absA - softStart) / (limit - softStart);
+      const eased = t * t; // ease-in damping toward the edge
+      body.angularVelocity *= 1 - eased * dampingFactor;
+      if (Math.abs(body.angularVelocity) < 0.02) {
+        body.angularVelocity += -Math.sign(body.angle) * (0.012 + 0.01 * eased); // kick back toward center
+      }
+    }
+  }
+
   function buildLights() {
     const { topLine } = state.images;
     if (!topLine) return;
@@ -369,22 +432,19 @@
   function drawChain(anchor, bob, segments, angle) {
     const dx = bob.x - anchor.x;
     const dy = bob.y - anchor.y;
-    const sagBase = Math.min(18, Math.hypot(dx, dy) * 0.08);
+    const sagBase = Math.min(28, Math.hypot(dx, dy) * 0.14); // deeper bend
     const sag = sagBase * (1 + Math.min(Math.abs(angle), 1));
-    ctx.save();
-    ctx.fillStyle = '#ffd133';
-    ctx.shadowColor = 'rgba(255, 179, 0, 1)';
-    ctx.shadowBlur = 44;
+    if (!state.sprites.chainDot) {
+      state.sprites.chainDot = makeGlowSprite(2.2, 2.2, 8, '#f2d999', 0.75);
+    }
+    const dot = state.sprites.chainDot;
     for (let i = 1; i <= segments; i += 1) {
       const t = i / segments;
       const sagFactor = Math.sin(Math.PI * t);
       const x = anchor.x + dx * t;
       const y = anchor.y + dy * t + sag * sagFactor;
-      ctx.beginPath();
-      ctx.arc(x, y, 3, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.drawImage(dot, x - dot.width / 2, y - dot.height / 2);
     }
-    ctx.restore();
   }
 
   function stepPhysics(dtMs) {
@@ -406,7 +466,7 @@
       state.sock.angularVelocity += angularAcceleration * dt;
       state.sock.angularVelocity *= damping;
       state.sock.angle += state.sock.angularVelocity * dt;
-      state.sock.angle = Math.max(Math.min(state.sock.angle, 0.32), -0.32);
+      smoothLimit(state.sock, 0.32);
     }
 
     // sock2 copies physics
@@ -421,7 +481,7 @@
       s.angularVelocity += angularAcceleration * dt;
       s.angularVelocity *= damping;
       s.angle += s.angularVelocity * dt;
-      s.angle = Math.max(Math.min(s.angle, 0.32), -0.32);
+      smoothLimit(s, 0.32);
     });
 
     // kendy copies physics
@@ -436,7 +496,7 @@
       k.angularVelocity += angularAcceleration * dt;
       k.angularVelocity *= damping;
       k.angle += k.angularVelocity * dt;
-      k.angle = Math.max(Math.min(k.angle, 0.32), -0.32);
+      smoothLimit(k, 0.32);
     });
 
     // leaves sway (small rotational sway driven by slow oscillation)
@@ -446,7 +506,7 @@
       state.leaves.angularVelocity += swayAccel * dt;
       state.leaves.angularVelocity *= 0.997;
       state.leaves.angle += state.leaves.angularVelocity * dt;
-      state.leaves.angle = Math.max(Math.min(state.leaves.angle, 0.06), -0.06);
+      smoothLimit(state.leaves, 0.06);
     }
     if (state.leaves2) {
       const target = Math.sin(now * state.leaves2.driveRate + state.leaves2.drivePhase) * 0.05;
@@ -454,7 +514,7 @@
       state.leaves2.angularVelocity += swayAccel * dt;
       state.leaves2.angularVelocity *= 0.997;
       state.leaves2.angle += state.leaves2.angularVelocity * dt;
-      state.leaves2.angle = Math.max(Math.min(state.leaves2.angle, 0.06), -0.06);
+      smoothLimit(state.leaves2, 0.06);
     }
 
     // update middle snowflake spin (slow-fast-slow with random direction flips)
@@ -480,7 +540,7 @@
       flake.angularVelocity += angularAcceleration * dt;
       flake.angularVelocity *= damping;
       flake.angle += flake.angularVelocity * dt;
-      flake.angle = Math.max(Math.min(flake.angle, 0.3), -0.3); // tighter cap to avoid lingering far aside
+      smoothLimit(flake, 0.3); // softer ease near extremes
     });
 
     state.lights.forEach((light) => {
@@ -544,19 +604,16 @@
         if (light.glow < 0.02) return; // fully off
         const drawX = light.baseX + light.offsetX;
         const drawY = light.baseY + light.offsetY;
+        const sprites = getLightSprites(light.color);
+        const scale = light.glow;
         ctx.save();
-        ctx.globalAlpha = 0.75 * light.glow;
-        ctx.fillStyle = light.color;
-        ctx.shadowColor = `${light.color}cc`;
-        ctx.shadowBlur = 18;
-        ctx.beginPath();
-        ctx.ellipse(drawX, drawY, 6 * light.glow, 4.5 * light.glow, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha = 1;
-        ctx.shadowBlur = 10;
-        ctx.beginPath();
-        ctx.ellipse(drawX, drawY, 3.6, 2.7, 0, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.globalAlpha = 0.9;
+        const glowW = sprites.glow.width * scale;
+        const glowH = sprites.glow.height * scale;
+        ctx.drawImage(sprites.glow, drawX - glowW / 2, drawY - glowH / 2, glowW, glowH);
+        const coreW = sprites.core.width * scale;
+        const coreH = sprites.core.height * scale;
+        ctx.drawImage(sprites.core, drawX - coreW / 2, drawY - coreH / 2, coreW, coreH);
         ctx.restore();
       });
     }
@@ -692,6 +749,8 @@
       [state.cherry, state.cherry2].forEach((ch) => {
         if (!ch) return;
         ctx.save();
+        ctx.shadowColor = 'rgba(255, 120, 120, 0.8)';
+        ctx.shadowBlur = 22;
         ctx.translate(ch.anchorX, ch.anchorY);
         ctx.drawImage(cherry1, -offsetX, -offsetY, drawW, drawH);
         ctx.restore();
