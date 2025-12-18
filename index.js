@@ -27,8 +27,6 @@
     leaves2: 'leaves2.png',
   };
 
-  const WIND_MAX = 2.6; // much punchier gust ceiling
-
   const state = {
     images: {},
     lineBounds: null,
@@ -43,9 +41,7 @@
     cherry: null,
     cherry2: null,
     leaves2: null,
-    wind: 0,
-    windTarget: 0,
-    nextWindShift: 0,
+    lights: [],
     spin3: {
       angle: 0,
       speed: 0,
@@ -100,6 +96,7 @@
       leaves2: getOpaqueBounds(leaves2),
     };
     createFlakes();
+    buildLights();
     state.ready = true;
     requestAnimationFrame(tick);
   }
@@ -155,6 +152,9 @@
         segments,
         angle: (Math.random() * 0.8 - 0.4), // larger random start
         angularVelocity: (Math.random() - 0.5) * 0.6,
+        driveRate: 0.0007 + Math.random() * 0.0006,
+        drivePhase: Math.random() * Math.PI * 2,
+        driveAmp: 0.18 + Math.random() * 0.08,
       };
     });
 
@@ -171,21 +171,34 @@
       segments: sockSegments,
       angle: (Math.random() * 0.4 - 0.2),
       angularVelocity: 0,
+      driveRate: 0.0009 + Math.random() * 0.0007,
+      drivePhase: Math.random() * Math.PI * 2,
+      driveAmp: 0.22 + Math.random() * 0.12,
     };
 
     // two sock2 copies around sock1
     const sock2Length = 20;
     const sock2Segments = Math.max(2, Math.round(sock2Length / 10));
-    const sock2YOffset = -117;
-    const sock2Offsets = [topLine.width * -0.42, topLine.width * 0.46];
-    state.sock2s = sock2Offsets.map((offsetX) => ({
-      anchor: { x: midX + offsetX, y: lineY + sock2YOffset + (offsetX < 0 ? 2 : 0) },
+    const sock2Offsets = [
+			{
+				offsetX: topLine.width * -0.42,
+				offsetY: -117,
+			}, {
+				offsetX: topLine.width * 0.40,
+				offsetY: -82
+			}
+		];
+    state.sock2s = sock2Offsets.map(({offsetX, offsetY}) => ({
+      anchor: { x: midX + offsetX, y: lineY + offsetY + (offsetX < 0 ? 2 : 0) },
       offsetX,
-      offsetY: sock2YOffset - 12,
+      offsetY: offsetY - 12,
       length: sock2Length,
       segments: sock2Segments,
       angle: (Math.random() * 0.4 - 0.2),
       angularVelocity: 0,
+      driveRate: 0.0009 + Math.random() * 0.0007,
+      drivePhase: Math.random() * Math.PI * 2,
+      driveAmp: 0.22 + Math.random() * 0.12,
     }));
 
     // two kendy copies around sock1 (closer than sock2)
@@ -203,6 +216,9 @@
       segments: kendySegments,
       angle: (Math.random() * 0.6 - 0.3),
       angularVelocity: (Math.random() - 0.5) * 0.5,
+      driveRate: 0.001 + Math.random() * 0.0007,
+      drivePhase: Math.random() * Math.PI * 2,
+      driveAmp: 0.2 + Math.random() * 0.1,
     }));
 
     // leaves resting on top of the line, gentle sway
@@ -213,6 +229,8 @@
       offsetY: 114,
       angle: 0,
       angularVelocity: 0,
+      driveRate: 0.0007 + Math.random() * 0.0005,
+      drivePhase: Math.random() * Math.PI * 2,
     };
 
     // leaves2 resting on top of the line, gentle sway
@@ -223,6 +241,8 @@
       offsetY: 48,
       angle: 0,
       angularVelocity: 0,
+      driveRate: 0.0007 + Math.random() * 0.0005,
+      drivePhase: Math.random() * Math.PI * 2,
     };
 
     // cherry resting near leaves (static, independent offsets)
@@ -293,6 +313,57 @@
       state.cherry2.anchorX = midX + state.cherry2.offsetX;
       state.cherry2.anchorY = lineTopY + state.cherry2.offsetY;
     }
+    if (state.lights.length) {
+      buildLights();
+    }
+  }
+
+  function pickChristmasColor() {
+    const palette = ['#ff4d4f', '#2ecc71', '#f4d03f', '#00c3ff', '#ff6f61'];
+    return palette[Math.floor(Math.random() * palette.length)];
+  }
+
+  function buildLights() {
+    const { topLine } = state.images;
+    if (!topLine) return;
+    const margin = 12;
+    const usableWidth = Math.max(200, window.innerWidth - margin * 2);
+    const anchorY = state.anchorY + (state.lineBounds
+      ? state.lineBounds.maxY + 10
+      : topLine.height * 0.6);
+    const sceneHeight = Math.max(220, Math.min(window.innerHeight * 0.65, 520));
+
+    const lanes = 6;
+    const perLane = Math.max(8, Math.floor(usableWidth / 70));
+    const lights = [];
+
+    for (let lane = 0; lane < lanes; lane += 1) {
+      const laneT = lanes === 1 ? 0.5 : lane / (lanes - 1);
+      const laneY = anchorY + (laneT - 0.25) * sceneHeight + (Math.random() * 30 - 15);
+      for (let i = 0; i < perLane; i += 1) {
+        const t = (i + Math.random() * 0.7 + lane * 0.1) / perLane;
+        const arcAmp = 28 + Math.random() * 32;
+        const arc = Math.sin(t * Math.PI * 2 + lane * 0.8) * arcAmp;
+        const jitterY = Math.random() * 30 - 15;
+        const x = margin + t * usableWidth + (Math.random() - 0.5) * 26;
+        lights.push({
+          baseX: x,
+          baseY: laneY + arc + jitterY,
+          offsetX: 0,
+          offsetY: 0,
+          targetX: (Math.random() - 0.5) * 8,
+          targetY: (Math.random() - 0.5) * 8,
+          nextMove: performance.now() + 200 + Math.random() * 800,
+          color: pickChristmasColor(),
+          on: Math.random() > 0.35,
+          glow: Math.random(),
+          interval: 1200 + Math.random() * 1600,
+          nextSwitch: performance.now() + Math.random() * 1400,
+        });
+      }
+    }
+
+    state.lights = lights;
   }
 
   function drawChain(anchor, bob, segments, angle) {
@@ -300,7 +371,10 @@
     const dy = bob.y - anchor.y;
     const sagBase = Math.min(18, Math.hypot(dx, dy) * 0.08);
     const sag = sagBase * (1 + Math.min(Math.abs(angle), 1));
-    ctx.fillStyle = '#f5d447';
+    ctx.save();
+    ctx.fillStyle = '#ffd133';
+    ctx.shadowColor = 'rgba(255, 179, 0, 1)';
+    ctx.shadowBlur = 44;
     for (let i = 1; i <= segments; i += 1) {
       const t = i / segments;
       const sagFactor = Math.sin(Math.PI * t);
@@ -310,30 +384,25 @@
       ctx.arc(x, y, 3, 0, Math.PI * 2);
       ctx.fill();
     }
+    ctx.restore();
   }
 
   function stepPhysics(dtMs) {
-    // damped pendulum with slowly varying wind
+    // damped pendulum with gentle self-driven sway
     const dt = dtMs / 1000; // seconds
     const gravity = 45; // stronger gravity for weightier swing
     const damping = 0.99;
+    const now = performance.now();
 
-    if (performance.now() > state.nextWindShift) {
-      state.windTarget = (Math.random() * 2 - 1) * WIND_MAX; // broaden gust range
-      state.nextWindShift = performance.now() + 1500 + Math.random() * 900;
-    }
-    state.wind += (state.windTarget - state.wind) * 0.02;
-    state.wind = Math.max(Math.min(state.wind, WIND_MAX), -WIND_MAX); // bound gust strength
-
-    // sock physics (shares wind but its own state)
+    // sock physics (self-driven sway)
     if (state.sock) {
-      const windForce = state.wind * 0.32; // socks catch even more wind
+      const drive = Math.sin(now * state.sock.driveRate + state.sock.drivePhase) * state.sock.driveAmp;
       let micro = (Math.random() - 0.5) * 0.006;
       if (Math.abs(state.sock.angularVelocity) < 0.00008 || Math.abs(state.sock.angle) > 0.24) {
         micro += (Math.random() - 0.5) * 0.03;
       }
       const centerPull = -0.15 * state.sock.angle; // allow wider drift
-      const angularAcceleration = -(gravity / state.sock.length) * Math.sin(state.sock.angle) + windForce + micro + centerPull;
+      const angularAcceleration = -(gravity / state.sock.length) * Math.sin(state.sock.angle) + drive + micro + centerPull;
       state.sock.angularVelocity += angularAcceleration * dt;
       state.sock.angularVelocity *= damping;
       state.sock.angle += state.sock.angularVelocity * dt;
@@ -342,13 +411,13 @@
 
     // sock2 copies physics
     state.sock2s.forEach((s) => {
-      const windForce = state.wind * 0.32; // socks catch even more wind
+      const drive = Math.sin(now * s.driveRate + s.drivePhase) * s.driveAmp;
       let micro = (Math.random() - 0.5) * 0.006;
       if (Math.abs(s.angularVelocity) < 0.00008 || Math.abs(s.angle) > 0.24) {
         micro += (Math.random() - 0.5) * 0.03;
       }
       const centerPull = -0.15 * s.angle; // allow wider drift
-      const angularAcceleration = -(gravity / s.length) * Math.sin(s.angle) + windForce + micro + centerPull;
+      const angularAcceleration = -(gravity / s.length) * Math.sin(s.angle) + drive + micro + centerPull;
       s.angularVelocity += angularAcceleration * dt;
       s.angularVelocity *= damping;
       s.angle += s.angularVelocity * dt;
@@ -357,22 +426,22 @@
 
     // kendy copies physics
     state.kendys.forEach((k) => {
-      const windForce = state.wind * 0.32; // match sock wind strength
+      const drive = Math.sin(now * k.driveRate + k.drivePhase) * k.driveAmp;
       let micro = (Math.random() - 0.5) * 0.006;
       if (Math.abs(k.angularVelocity) < 0.00008 || Math.abs(k.angle) > 0.24) {
         micro += (Math.random() - 0.5) * 0.03;
       }
       const centerPull = -0.15 * k.angle; // allow wider drift like socks
-      const angularAcceleration = -(gravity / k.length) * Math.sin(k.angle) + windForce + micro + centerPull;
+      const angularAcceleration = -(gravity / k.length) * Math.sin(k.angle) + drive + micro + centerPull;
       k.angularVelocity += angularAcceleration * dt;
       k.angularVelocity *= damping;
       k.angle += k.angularVelocity * dt;
       k.angle = Math.max(Math.min(k.angle, 0.32), -0.32);
     });
 
-    // leaves sway (small rotational sway reacting to wind)
+    // leaves sway (small rotational sway driven by slow oscillation)
     if (state.leaves) {
-      const target = state.wind * 0.045; // toned-down sway
+      const target = Math.sin(now * state.leaves.driveRate + state.leaves.drivePhase) * 0.05;
       const swayAccel = (target - state.leaves.angle) * 0.55;
       state.leaves.angularVelocity += swayAccel * dt;
       state.leaves.angularVelocity *= 0.997;
@@ -380,7 +449,7 @@
       state.leaves.angle = Math.max(Math.min(state.leaves.angle, 0.06), -0.06);
     }
     if (state.leaves2) {
-      const target = state.wind * 0.045;
+      const target = Math.sin(now * state.leaves2.driveRate + state.leaves2.drivePhase) * 0.05;
       const swayAccel = (target - state.leaves2.angle) * 0.55;
       state.leaves2.angularVelocity += swayAccel * dt;
       state.leaves2.angularVelocity *= 0.997;
@@ -389,10 +458,10 @@
     }
 
     // update middle snowflake spin (slow-fast-slow with random direction flips)
-    if (performance.now() > state.spin3.nextSwitch) {
+    if (now > state.spin3.nextSwitch) {
       state.spin3.dir = Math.random() > 0.5 ? 1 : -1;
-      state.spin3.targetSpeed = 0.3 + Math.random() * 0.8; // rad/s
-      state.spin3.nextSwitch = performance.now() + 1200 + Math.random() * 1400;
+      state.spin3.targetSpeed = 1.6 + Math.random() * 1.8; // even faster rad/s
+      state.spin3.nextSwitch = now + 1200 + Math.random() * 1400;
     }
     const desired = state.spin3.targetSpeed * state.spin3.dir;
     const spinAccel = (desired - state.spin3.speed) * 2.2;
@@ -401,17 +470,40 @@
     state.spin3.angle += state.spin3.speed * dt;
 
     state.flakes.forEach((flake) => {
-      const windForce = state.wind * 0.045; // stronger push
+      const drive = Math.sin(now * flake.driveRate + flake.drivePhase) * flake.driveAmp;
       let micro = (Math.random() - 0.5) * 0.006;
       if (Math.abs(flake.angularVelocity) < 0.00008 || Math.abs(flake.angle) > 0.24) {
         micro += (Math.random() - 0.5) * 0.03; // stronger nudge if stalled or near edge
       }
       const centerPull = -0.25 * flake.angle; // stronger spring toward center
-      const angularAcceleration = -(gravity / flake.length) * Math.sin(flake.angle) + windForce + micro + centerPull;
+      const angularAcceleration = -(gravity / flake.length) * Math.sin(flake.angle) + drive + micro + centerPull;
       flake.angularVelocity += angularAcceleration * dt;
       flake.angularVelocity *= damping;
       flake.angle += flake.angularVelocity * dt;
       flake.angle = Math.max(Math.min(flake.angle, 0.3), -0.3); // tighter cap to avoid lingering far aside
+    });
+
+    state.lights.forEach((light) => {
+      if (now > light.nextSwitch) {
+        light.on = !light.on;
+        if (!light.on && Math.random() < 0.25) {
+          light.color = pickChristmasColor();
+        }
+        light.nextSwitch = now + light.interval * (0.5 + Math.random());
+      }
+      const targetGlow = light.on ? 1 : 0;
+      light.glow += (targetGlow - light.glow) * 0.12;
+
+      const invisible = light.glow < 0.08;
+      if (!light.on && invisible && now > light.nextMove) {
+        light.targetX = (Math.random() - 0.5) * 16;
+        light.targetY = (Math.random() - 0.5) * 16;
+        light.nextMove = now + 600 + Math.random() * 1600;
+      }
+      if (!light.on && invisible) {
+        light.offsetX += (light.targetX - light.offsetX) * 0.04;
+        light.offsetY += (light.targetY - light.offsetY) * 0.04;
+      }
     });
   }
 
@@ -437,9 +529,36 @@
     ctx.restore();
 
     const lineX = (window.innerWidth - topLine.width) / 2;
+    ctx.save();
+    ctx.shadowColor = 'rgba(255, 208, 120, 0.8)';
+    ctx.shadowBlur = 36;
     ctx.drawImage(topLine, lineX, state.anchorY);
     if (state.images.sosul) {
       ctx.drawImage(state.images.sosul, lineX, state.anchorY);
+    }
+    ctx.restore();
+
+    // festive lights riding the line
+    if (state.lights.length) {
+      state.lights.forEach((light) => {
+        if (light.glow < 0.02) return; // fully off
+        const drawX = light.baseX + light.offsetX;
+        const drawY = light.baseY + light.offsetY;
+        ctx.save();
+        ctx.globalAlpha = 0.75 * light.glow;
+        ctx.fillStyle = light.color;
+        ctx.shadowColor = `${light.color}cc`;
+        ctx.shadowBlur = 18;
+        ctx.beginPath();
+        ctx.ellipse(drawX, drawY, 6 * light.glow, 4.5 * light.glow, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.ellipse(drawX, drawY, 3.6, 2.7, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
     }
 
     // Draw sock with a thin rope
@@ -501,6 +620,8 @@
 
       ctx.save();
       ctx.translate(bob.x, bob.y);
+      ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
+      ctx.shadowBlur = 58;
       ctx.drawImage(flake.img, -cx, -cy, drawW, drawH);
       ctx.restore();
 
@@ -519,6 +640,8 @@
         const { drawW: mW, drawH: mH, cx: mCx, cy: mCy } = getCenterOffsets('snowflake3', snowflake3, midScale);
         ctx.save();
         ctx.translate(midX, midY);
+        ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
+        ctx.shadowBlur = 58;
         ctx.rotate(state.spin3.angle);
         ctx.drawImage(snowflake3, -mCx, -mCy, mW, mH);
         ctx.restore();
@@ -656,6 +779,8 @@
           : 0;
         ctx.save();
         ctx.translate(bob.x, bob.y);
+        ctx.shadowColor = 'rgba(255, 255, 255, 0.7)';
+        ctx.shadowBlur = 20;
         ctx.drawImage(kendy, -attachX, -attachY, drawW, drawH);
         ctx.restore();
       });
